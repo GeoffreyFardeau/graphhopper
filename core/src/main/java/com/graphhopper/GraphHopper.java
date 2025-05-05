@@ -18,8 +18,12 @@
 package com.graphhopper;
 
 import com.bedatadriven.jackson.datatype.jts.JtsModule;
+import com.carrotsearch.hppc.BitSet;
+import com.carrotsearch.hppc.IntArrayDeque;
 import com.carrotsearch.hppc.IntArrayList;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.graphhopper.coll.GHBitSet;
+import com.graphhopper.coll.GHBitSetImpl;
 import com.graphhopper.config.CHProfile;
 import com.graphhopper.config.LMProfile;
 import com.graphhopper.config.Profile;
@@ -58,6 +62,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
+import java.lang.reflect.Array;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
@@ -885,9 +890,38 @@ public class GraphHopper {
     }
 
     protected void postImportOSM() {
-        IntArrayList newEdgesByOldEdges = ArrayUtil.iota(baseGraph.getEdges());
-        ArrayUtil.shuffle(newEdgesByOldEdges, new Random(123));
+        IntArrayList edgeOrder = new IntArrayList();
+        IntArrayList nodeOrder = new IntArrayList();
+
+        int nodes = baseGraph.getNodes();
+        BitSet nodesFound = new BitSet(nodes);
+
+        int edges = baseGraph.getEdges();
+        BitSet edgesFound = new BitSet(edges);
+
+        EdgeExplorer explorer = baseGraph.createEdgeExplorer();
+        for (int startNode = 0; startNode < baseGraph.getNodes(); startNode++) {
+            if (nodesFound.get(startNode)) continue;
+            IntArrayDeque stack = new IntArrayDeque();
+            stack.addLast(startNode);
+            while (!stack.isEmpty()) {
+                int node = stack.removeLast();
+                EdgeIterator iter = explorer.setBaseNode(node);
+                while (iter.next()) {
+                    if (!edgesFound.get(iter.getEdge())) {
+                        edgeOrder.add(iter.getEdge());
+                        edgesFound.set(iter.getEdge());
+                    }
+                    stack.addLast(iter.getAdjNode());
+                }
+                nodeOrder.add(node);
+                nodesFound.set(node);
+            }
+        }
+        IntArrayList newEdgesByOldEdges = ArrayUtil.invert(edgeOrder);
         baseGraph.sortEdges(newEdgesByOldEdges::get);
+//        IntArrayList newNodesByOldNodes = ArrayUtil.invert(nodeOrder);
+//        baseGraph.relabelNodes(newNodesByOldNodes::get);
         // Important note: To deal with via-way turn restrictions we introduce artificial edges in OSMReader (#2689).
         // These are simply copies of real edges. Any further modifications of the graph edges must take care of keeping
         // the artificial edges in sync with their real counterparts. So if an edge attribute shall be changed this change
