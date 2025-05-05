@@ -908,10 +908,12 @@ public class GraphHopper {
                 int node = stack.removeLast();
                 EdgeIterator iter = explorer.setBaseNode(node);
                 while (iter.next()) {
-                    if (!edgesFound.get(iter.getEdge())) {
-                        edgeOrder.add(iter.getEdge());
-                        edgesFound.set(iter.getEdge());
-                    }
+                    if (nodesFound.get(iter.getAdjNode()))
+                        continue;
+                    if (edgesFound.get(iter.getEdge()))
+                        continue;
+                    edgeOrder.add(iter.getEdge());
+                    edgesFound.set(iter.getEdge());
                     stack.addLast(iter.getAdjNode());
                 }
                 nodeOrder.add(node);
