@@ -18,6 +18,7 @@
 package com.graphhopper;
 
 import com.bedatadriven.jackson.datatype.jts.JtsModule;
+import com.carrotsearch.hppc.IntArrayList;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.graphhopper.config.CHProfile;
 import com.graphhopper.config.LMProfile;
@@ -884,6 +885,9 @@ public class GraphHopper {
     }
 
     protected void postImportOSM() {
+        IntArrayList newEdgesByOldEdges = ArrayUtil.iota(baseGraph.getEdges());
+        ArrayUtil.shuffle(newEdgesByOldEdges, new Random(123));
+        baseGraph.sortEdges(newEdgesByOldEdges::get);
         // Important note: To deal with via-way turn restrictions we introduce artificial edges in OSMReader (#2689).
         // These are simply copies of real edges. Any further modifications of the graph edges must take care of keeping
         // the artificial edges in sync with their real counterparts. So if an edge attribute shall be changed this change

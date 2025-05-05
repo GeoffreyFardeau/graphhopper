@@ -782,6 +782,17 @@ public abstract class AbstractGraphStorageTester {
         assertEquals(3, edgeState20.fetchWayGeometry(FetchMode.PILLAR_ONLY).getLat(0), 1e-1);
     }
 
+    @Test
+    void sortEdges() {
+        graph = createGHStorage();
+        graph.edge(0, 1).setDistance(100).set(carSpeedEnc, 10).setKeyValues(Map.of(STREET_NAME, new KValue("street1")));
+        graph.edge(0, 2).setDistance(200).set(carSpeedEnc, 20).setKeyValues(Map.of(STREET_NAME, new KValue("street2")));
+        graph.debugPrint();
+        int[] newEdgesByOldEdges = new int[]{1, 0};
+        graph.sortEdges(old -> newEdgesByOldEdges[old]);
+        graph.debugPrint();
+    }
+
     private int getCountOut(int node) {
         return GHUtility.count(carOutExplorer.setBaseNode(node));
     }

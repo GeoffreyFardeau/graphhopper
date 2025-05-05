@@ -20,10 +20,13 @@ package com.graphhopper.storage;
 
 import com.carrotsearch.hppc.DoubleArrayList;
 import com.carrotsearch.hppc.IntArrayList;
+import com.carrotsearch.hppc.LongArrayList;
 import com.graphhopper.routing.ev.EdgeIntAccess;
 import com.graphhopper.util.*;
 import com.graphhopper.util.shapes.BBox;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.function.IntUnaryOperator;
 
@@ -219,6 +222,50 @@ class BaseGraphNodesAndEdges implements EdgeIntAccess {
             setEdgeRef(nodePointerB, edge);
         }
         return edge;
+    }
+
+    public void sortEdges(IntUnaryOperator getNewEdgeForOldEdge) {
+        // todonow: need to make sure real edges are stored before their artificial counter-parts?
+        IntArrayList nodeAs = new IntArrayList();
+        IntArrayList nodeBs = new IntArrayList();
+        IntArrayList linkAs = new IntArrayList();
+        IntArrayList linkBs = new IntArrayList();
+        IntArrayList dists = new IntArrayList();
+        IntArrayList kvs = new IntArrayList();
+        List<IntsRef> flags = new ArrayList<>();
+        LongArrayList geos = new LongArrayList();
+        // copy existing edges to temporary memory
+        for (int edge = 0; edge < getEdges(); edge++) {
+            long pointer = toEdgePointer(edge);
+            nodeAs.add(getNodeA(pointer));
+            nodeBs.add(getNodeB(pointer));
+            linkAs.add(getLinkA(pointer));
+            linkBs.add(getLinkB(pointer));
+            dists.add(edges.getInt(pointer + E_DIST));
+            kvs.add(getKeyValuesRef(pointer));
+            IntsRef intsRef = createEdgeFlags();
+            readFlags(pointer, intsRef);
+            flags.add(intsRef);
+            geos.add(getGeoRef(pointer));
+        }
+        // insert edges in new order
+        for (int edge = 0; edge < getEdges(); edge++) {
+            int newEdge = getNewEdgeForOldEdge.applyAsInt(edge);
+            long pointer = toEdgePointer(newEdge);
+            setNodeA(pointer, nodeAs.get(edge));
+            setNodeB(pointer, nodeBs.get(edge));
+            setLinkA(pointer, linkAs.get(edge) == -1 ? -1 : getNewEdgeForOldEdge.applyAsInt(linkAs.get(edge)));
+            setLinkB(pointer, linkBs.get(edge) == -1 ? -1 : getNewEdgeForOldEdge.applyAsInt(linkBs.get(edge)));
+            edges.setInt(pointer + E_DIST, dists.get(edge));
+            setKeyValuesRef(pointer, kvs.get(edge));
+            writeFlags(pointer, flags.get(edge));
+            setGeoRef(pointer, geos.get(edge));
+        }
+        // update edge references
+        for (int node = 0; node < getNodes(); node++) {
+            long pointer = toNodePointer(node);
+            setEdgeRef(pointer, getNewEdgeForOldEdge.applyAsInt(getEdgeRef(pointer)));
+        }
     }
 
     public void relabelNodes(IntUnaryOperator getNewNodeForOldNode) {
@@ -467,8 +514,8 @@ class BaseGraphNodesAndEdges implements EdgeIntAccess {
             System.out.format(Locale.ROOT, " ... %d more nodes\n", nodeCount - printMax);
         }
         System.out.println("edges:");
-        String formatEdges = "%12s | %12s | %12s | %12s | %12s | %12s | %12s \n";
-        System.out.format(Locale.ROOT, formatEdges, "#", "E_NODEA", "E_NODEB", "E_LINKA", "E_LINKB", "E_FLAGS", "E_DIST");
+        String formatEdges = "%12s | %12s | %12s | %12s | %12s | %12s | %12s | %12s | %12s | %12s \n";
+        System.out.format(Locale.ROOT, formatEdges, "#", "E_NODEA", "E_NODEB", "E_LINKA", "E_LINKB", "E_FLAGS", "E_DIST", "E_KV", "lat", "lon");
         IntsRef edgeFlags = createEdgeFlags();
         for (int i = 0; i < Math.min(edgeCount, printMax); ++i) {
             long edgePointer = toEdgePointer(i);
@@ -479,7 +526,11 @@ class BaseGraphNodesAndEdges implements EdgeIntAccess {
                     getLinkA(edgePointer),
                     getLinkB(edgePointer),
                     edgeFlags,
-                    getDist(edgePointer));
+                    getDist(edgePointer),
+                    getKeyValuesRef(edgePointer),
+                    getLat(toNodePointer(getNodeA(edgePointer))),
+                    getLon(toNodePointer(getNodeA(edgePointer)))
+            );
         }
         if (edgeCount > printMax) {
             System.out.printf(Locale.ROOT, " ... %d more edges", edgeCount - printMax);

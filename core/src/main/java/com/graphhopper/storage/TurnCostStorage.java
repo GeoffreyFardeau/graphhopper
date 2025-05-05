@@ -25,6 +25,8 @@ import com.graphhopper.util.Constants;
 import com.graphhopper.util.EdgeIterator;
 import com.graphhopper.util.GHUtility;
 
+import java.util.function.IntUnaryOperator;
+
 /**
  * A key/value store, where the unique keys are triples (fromEdge, viaNode, toEdge) and the values
  * are integers that can be used to store encoded values.
@@ -109,7 +111,7 @@ public class TurnCostStorage {
             ensureTurnCostIndex(index);
             int prevIndex = baseGraph.getNodeAccess().getTurnCostIndex(viaNode);
             baseGraph.getNodeAccess().setTurnCostIndex(viaNode, index);
-            long pointer = (long) index * BYTES_PER_ENTRY;
+            long pointer = toPointer(index);
             turnCosts.setInt(pointer + TC_FROM, fromEdge);
             turnCosts.setInt(pointer + TC_TO, toEdge);
             turnCosts.setInt(pointer + TC_NEXT, prevIndex);
@@ -136,18 +138,18 @@ public class TurnCostStorage {
         return new EdgeIntAccess() {
             @Override
             public int getInt(int entryIndex, int index) {
-                return turnCosts.getInt((long) entryIndex * BYTES_PER_ENTRY + TC_FLAGS);
+                return turnCosts.getInt(toPointer(entryIndex) + TC_FLAGS);
             }
 
             @Override
             public void setInt(int entryIndex, int index, int value) {
-                turnCosts.setInt((long) entryIndex * BYTES_PER_ENTRY + TC_FLAGS, value);
+                turnCosts.setInt(toPointer(entryIndex) + TC_FLAGS, value);
             }
         };
     }
 
-    private void ensureTurnCostIndex(int nodeIndex) {
-        turnCosts.ensureCapacity(((long) nodeIndex + 1) * BYTES_PER_ENTRY);
+    private void ensureTurnCostIndex(int index) {
+        turnCosts.ensureCapacity(toPointer(index + 1));
     }
 
     private int findIndex(int fromEdge, int viaNode, int toEdge) {
@@ -160,12 +162,24 @@ public class TurnCostStorage {
         int index = baseGraph.getNodeAccess().getTurnCostIndex(viaNode);
         for (int i = 0; i < maxEntries; ++i) {
             if (index == NO_TURN_ENTRY) return -1;
-            long pointer = (long) index * BYTES_PER_ENTRY;
+            long pointer = toPointer(index);
             if (fromEdge == turnCosts.getInt(pointer + TC_FROM) && toEdge == turnCosts.getInt(pointer + TC_TO))
                 return index;
             index = turnCosts.getInt(pointer + TC_NEXT);
         }
         throw new IllegalStateException("Turn cost list for node: " + viaNode + " is longer than expected, max: " + maxEntries);
+    }
+
+    public void sortEdges(IntUnaryOperator getNewEdgeForOldEdge) {
+        for (int i = 0; i < turnCostsCount; i++) {
+            long pointer = toPointer(i);
+            turnCosts.setInt(pointer + TC_FROM, getNewEdgeForOldEdge.applyAsInt(turnCosts.getInt(pointer + TC_FROM)));
+            turnCosts.setInt(pointer + TC_TO, getNewEdgeForOldEdge.applyAsInt(turnCosts.getInt(pointer + TC_TO)));
+        }
+    }
+
+    private long toPointer(int index) {
+        return (long) index * BYTES_PER_ENTRY;
     }
 
     public int getTurnCostsCount() {
@@ -176,7 +190,7 @@ public class TurnCostStorage {
         int index = baseGraph.getNodeAccess().getTurnCostIndex(node);
         int count = 0;
         while (index != NO_TURN_ENTRY) {
-            long pointer = (long) index * BYTES_PER_ENTRY;
+            long pointer = toPointer(index);
             index = turnCosts.getInt(pointer + TC_NEXT);
             count++;
         }
@@ -225,7 +239,7 @@ public class TurnCostStorage {
         private final EdgeIntAccess edgeIntAccess = new IntsRefEdgeIntAccess(intsRef);
 
         private long turnCostPtr() {
-            return (long) turnCostIndex * BYTES_PER_ENTRY;
+            return toPointer(turnCostIndex);
         }
 
         @Override
