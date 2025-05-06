@@ -891,7 +891,7 @@ public class GraphHopper {
     }
 
     protected void postImportOSM() {
-        int order = 10;
+        int order = 8;
         NodeAccess na = baseGraph.getNodeAccess();
         IntArrayList indices = new IntArrayList();
         for (int node = 0; node < baseGraph.getNodes(); node++)
