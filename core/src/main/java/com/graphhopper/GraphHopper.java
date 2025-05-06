@@ -905,7 +905,7 @@ public class GraphHopper {
             IntArrayDeque stack = new IntArrayDeque();
             stack.addLast(startNode);
             while (!stack.isEmpty()) {
-                int node = stack.removeLast();
+                int node = stack.removeFirst();
                 if (nodesFound.get(node)) continue;
                 EdgeIterator iter = explorer.setBaseNode(node);
                 while (iter.next()) {
@@ -921,8 +921,8 @@ public class GraphHopper {
                 nodesFound.set(node);
             }
         }
-//        IntArrayList newEdgesByOldEdges = ArrayUtil.invert(edgeOrder);
-//        baseGraph.sortEdges(newEdgesByOldEdges::get);
+        IntArrayList newEdgesByOldEdges = ArrayUtil.invert(edgeOrder);
+        baseGraph.sortEdges(newEdgesByOldEdges::get);
         IntArrayList newNodesByOldNodes = ArrayUtil.invert(nodeOrder);
         baseGraph.relabelNodes(newNodesByOldNodes::get);
         // Important note: To deal with via-way turn restrictions we introduce artificial edges in OSMReader (#2689).
