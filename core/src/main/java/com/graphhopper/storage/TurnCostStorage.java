@@ -17,6 +17,7 @@
  */
 package com.graphhopper.storage;
 
+import com.carrotsearch.hppc.IntArrayList;
 import com.graphhopper.routing.ev.BooleanEncodedValue;
 import com.graphhopper.routing.ev.DecimalEncodedValue;
 import com.graphhopper.routing.ev.EdgeIntAccess;
@@ -216,6 +217,44 @@ public class TurnCostStorage {
      */
     public Iterator getAllTurnCosts() {
         return new Itr();
+    }
+
+    public void sortNodes() {
+        IntArrayList tcFroms = new IntArrayList();
+        IntArrayList tcTos = new IntArrayList();
+        IntArrayList tcFlags = new IntArrayList();
+        IntArrayList tcNexts = new IntArrayList();
+        for (int i = 0; i < turnCostsCount; i++) {
+            long pointer = toPointer(i);
+            tcFroms.add(turnCosts.getInt(pointer + TC_FROM));
+            tcTos.add(turnCosts.getInt(pointer + TC_TO));
+            tcFlags.add(turnCosts.getInt(pointer + TC_FLAGS));
+            tcNexts.add(turnCosts.getInt(pointer + TC_NEXT));
+        }
+        long turnCostsCountBefore = turnCostsCount;
+        turnCostsCount = 0;
+        for (int node = 0; node < baseGraph.getNodes(); node++) {
+            boolean firstForNode = true;
+            int turnCostIndex = baseGraph.getNodeAccess().getTurnCostIndex(node);
+            while (turnCostIndex != NO_TURN_ENTRY) {
+                if (firstForNode) {
+                    baseGraph.getNodeAccess().setTurnCostIndex(node, turnCostsCount);
+                } else {
+                    long prevPointer = toPointer(turnCostsCount - 1);
+                    turnCosts.setInt(prevPointer + TC_NEXT, turnCostsCount);
+                }
+                long pointer = toPointer(turnCostsCount);
+                turnCosts.setInt(pointer + TC_FROM, tcFroms.get(turnCostIndex));
+                turnCosts.setInt(pointer + TC_TO, tcTos.get(turnCostIndex));
+                turnCosts.setInt(pointer + TC_FLAGS, tcFlags.get(turnCostIndex));
+                turnCosts.setInt(pointer + TC_NEXT, NO_TURN_ENTRY);
+                turnCostsCount++;
+                firstForNode = false;
+                turnCostIndex = tcNexts.get(turnCostIndex);
+            }
+        }
+        if (turnCostsCountBefore != turnCostsCount)
+            throw new IllegalStateException("Turn cost count changed unexpectedly: " + turnCostsCountBefore + " -> " + turnCostsCount);
     }
 
     public interface Iterator {

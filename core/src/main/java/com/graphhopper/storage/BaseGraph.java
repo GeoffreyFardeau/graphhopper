@@ -386,6 +386,8 @@ public class BaseGraph implements Graph, Closeable {
         if (isFrozen())
             throw new IllegalStateException("Cannot relabel nodes if graph is already frozen");
         store.relabelNodes(getNewNodeForOldNode);
+        if (supportsTurnCosts())
+            turnCostStorage.sortNodes();
     }
 
     @Override
