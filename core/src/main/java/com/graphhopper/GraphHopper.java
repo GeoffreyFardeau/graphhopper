@@ -21,6 +21,7 @@ import com.bedatadriven.jackson.datatype.jts.JtsModule;
 import com.carrotsearch.hppc.BitSet;
 import com.carrotsearch.hppc.IntArrayDeque;
 import com.carrotsearch.hppc.IntArrayList;
+import com.carrotsearch.hppc.sorting.IndirectSort;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.graphhopper.coll.GHBitSet;
 import com.graphhopper.coll.GHBitSetImpl;
@@ -890,41 +891,32 @@ public class GraphHopper {
     }
 
     protected void postImportOSM() {
-        IntArrayList edgeOrder = new IntArrayList();
-        IntArrayList nodeOrder = new IntArrayList();
-
-        int nodes = baseGraph.getNodes();
-        BitSet nodesFound = new BitSet(nodes);
-
-        int edges = baseGraph.getEdges();
-        BitSet edgesFound = new BitSet(edges);
+        int order = 12;
+        NodeAccess na = baseGraph.getNodeAccess();
+        IntArrayList indices = new IntArrayList();
+        for (int node = 0; node < baseGraph.getNodes(); node++)
+            indices.add(Math.toIntExact(latLngToHilbertIndex(na.getLat(node), na.getLon(node), order)));
+        int[] nodeOrder = IndirectSort.mergesort(0, baseGraph.getNodes(), (nodeA, nodeB) -> Integer.compare(indices.get(nodeA), indices.get(nodeB)));
 
         EdgeExplorer explorer = baseGraph.createEdgeExplorer();
-        for (int startNode = 0; startNode < baseGraph.getNodes(); startNode++) {
-            if (nodesFound.get(startNode)) continue;
-            IntArrayDeque stack = new IntArrayDeque();
-            stack.addLast(startNode);
-            while (!stack.isEmpty()) {
-                int node = stack.removeFirst();
-                if (nodesFound.get(node)) continue;
-                EdgeIterator iter = explorer.setBaseNode(node);
-                while (iter.next()) {
-                    if (nodesFound.get(iter.getAdjNode()))
-                        continue;
-                    if (edgesFound.get(iter.getEdge()))
-                        continue;
+        int edges = baseGraph.getEdges();
+        IntArrayList edgeOrder = new IntArrayList();
+        BitSet edgesFound = new BitSet(edges);
+        for (int node : nodeOrder) {
+            EdgeIterator iter = explorer.setBaseNode(node);
+            while (iter.next()) {
+                if (!edgesFound.get(iter.getEdge())) {
                     edgeOrder.add(iter.getEdge());
                     edgesFound.set(iter.getEdge());
-                    stack.addLast(iter.getAdjNode());
                 }
-                nodeOrder.add(node);
-                nodesFound.set(node);
             }
         }
+
         IntArrayList newEdgesByOldEdges = ArrayUtil.invert(edgeOrder);
         baseGraph.sortEdges(newEdgesByOldEdges::get);
-        IntArrayList newNodesByOldNodes = ArrayUtil.invert(nodeOrder);
+        IntArrayList newNodesByOldNodes = IntArrayList.from(ArrayUtil.invert(nodeOrder));
         baseGraph.relabelNodes(newNodesByOldNodes::get);
+
         // Important note: To deal with via-way turn restrictions we introduce artificial edges in OSMReader (#2689).
         // These are simply copies of real edges. Any further modifications of the graph edges must take care of keeping
         // the artificial edges in sync with their real counterparts. So if an edge attribute shall be changed this change
@@ -939,6 +931,37 @@ public class GraphHopper {
 
         if (hasElevation())
             interpolateBridgesTunnelsAndFerries();
+    }
+
+    public static long latLngToHilbertIndex(double lat, double lng, int order) {
+        double nx = (lng + 180) / 360;
+        double ny = (90 - lat) / 180;
+        int size = 1 << order;
+        int x = (int) (nx * size);
+        int y = (int) (ny * size);
+        x = Math.max(0, Math.min(size - 1, x));
+        y = Math.max(0, Math.min(size - 1, y));
+        return xy2d(order, x, y);
+    }
+
+    public static long xy2d(int n, int x, int y) {
+        long d = 0;
+        for (int s = 1 << (n - 1); s > 0; s >>= 1) {
+            int rx = (x & s) > 0 ? 1 : 0;
+            int ry = (y & s) > 0 ? 1 : 0;
+            d += s * (long) s * ((3 * rx) ^ ry);
+
+            if (ry == 0) {
+                if (rx == 1) {
+                    x = s - 1 - x;
+                    y = s - 1 - y;
+                }
+                int tmp = x;
+                x = y;
+                y = tmp;
+            }
+        }
+        return d;
     }
 
     protected void importOSM() {
