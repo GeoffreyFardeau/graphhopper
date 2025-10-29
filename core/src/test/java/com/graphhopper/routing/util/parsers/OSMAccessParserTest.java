@@ -62,4 +62,48 @@ class OSMAccessParserTest {
         // Should not set anything for unknown values
         assertEquals(Access.MISSING, accessEnc.getEnum(false, edgeId, edgeIntAccess));
     }
+
+    @Test
+    public void testAccessPermissive() {
+        EdgeIntAccess edgeIntAccess = new ArrayEdgeIntAccess(1);
+        int edgeId = 0;
+        ReaderWay way = new ReaderWay(1);
+        way.setTag("access", "permissive");
+        
+        parser.handleWayTags(edgeId, edgeIntAccess, way);
+        assertEquals(Access.PERMISSIVE, accessEnc.getEnum(false, edgeId, edgeIntAccess));
+    }
+
+    @Test
+    public void testAccessPrivate() {
+        EdgeIntAccess edgeIntAccess = new ArrayEdgeIntAccess(1);
+        int edgeId = 0;
+        ReaderWay way = new ReaderWay(1);
+        way.setTag("access", "private");
+        
+        parser.handleWayTags(edgeId, edgeIntAccess, way);
+        assertEquals(Access.PRIVATE, accessEnc.getEnum(false, edgeId, edgeIntAccess));
+    }
+
+    @Test
+    public void testAccessDestination() {
+        EdgeIntAccess edgeIntAccess = new ArrayEdgeIntAccess(1);
+        int edgeId = 0;
+        ReaderWay way = new ReaderWay(1);
+        way.setTag("access", "destination");
+        
+        parser.handleWayTags(edgeId, edgeIntAccess, way);
+        assertEquals(Access.DESTINATION, accessEnc.getEnum(false, edgeId, edgeIntAccess));
+    }
+
+    @Test
+    public void testAccessCustomers() {
+        EdgeIntAccess edgeIntAccess = new ArrayEdgeIntAccess(1);
+        int edgeId = 0;
+        ReaderWay way = new ReaderWay(1);
+        way.setTag("access", "customers");
+        
+        parser.handleWayTags(edgeId, edgeIntAccess, way);
+        assertEquals(Access.CUSTOMERS, accessEnc.getEnum(false, edgeId, edgeIntAccess));
+    }
 }

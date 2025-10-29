@@ -62,4 +62,48 @@ class OSMMotorVehicleParserTest {
         // Should not set anything for unknown values
         assertEquals(MotorVehicle.MISSING, motorVehicleEnc.getEnum(false, edgeId, edgeIntAccess));
     }
+
+    @Test
+    public void testMotorVehiclePermissive() {
+        EdgeIntAccess edgeIntAccess = new ArrayEdgeIntAccess(1);
+        int edgeId = 0;
+        ReaderWay way = new ReaderWay(1);
+        way.setTag("motor_vehicle", "permissive");
+        
+        parser.handleWayTags(edgeId, edgeIntAccess, way);
+        assertEquals(MotorVehicle.PERMISSIVE, motorVehicleEnc.getEnum(false, edgeId, edgeIntAccess));
+    }
+
+    @Test
+    public void testMotorVehiclePrivate() {
+        EdgeIntAccess edgeIntAccess = new ArrayEdgeIntAccess(1);
+        int edgeId = 0;
+        ReaderWay way = new ReaderWay(1);
+        way.setTag("motor_vehicle", "private");
+        
+        parser.handleWayTags(edgeId, edgeIntAccess, way);
+        assertEquals(MotorVehicle.PRIVATE, motorVehicleEnc.getEnum(false, edgeId, edgeIntAccess));
+    }
+
+    @Test
+    public void testMotorVehicleDestination() {
+        EdgeIntAccess edgeIntAccess = new ArrayEdgeIntAccess(1);
+        int edgeId = 0;
+        ReaderWay way = new ReaderWay(1);
+        way.setTag("motor_vehicle", "destination");
+        
+        parser.handleWayTags(edgeId, edgeIntAccess, way);
+        assertEquals(MotorVehicle.DESTINATION, motorVehicleEnc.getEnum(false, edgeId, edgeIntAccess));
+    }
+
+    @Test
+    public void testMotorVehicleDelivery() {
+        EdgeIntAccess edgeIntAccess = new ArrayEdgeIntAccess(1);
+        int edgeId = 0;
+        ReaderWay way = new ReaderWay(1);
+        way.setTag("motor_vehicle", "delivery");
+        
+        parser.handleWayTags(edgeId, edgeIntAccess, way);
+        assertEquals(MotorVehicle.DELIVERY, motorVehicleEnc.getEnum(false, edgeId, edgeIntAccess));
+    }
 }
