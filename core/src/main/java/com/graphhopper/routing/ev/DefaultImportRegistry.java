@@ -353,6 +353,16 @@ public class DefaultImportRegistry implements ImportRegistry {
                             lookup.getBooleanEncodedValue(VehicleAccess.key("car")),
                             lookup.getEnumEncodedValue(Barrier.KEY, Barrier.class))
             );
+        else if (Access.KEY.equals(name))
+            return ImportUnit.create(name, props -> Access.create(),
+                    (lookup, props) -> new OSMAccessParser(
+                            lookup.getEnumEncodedValue(Access.KEY, Access.class))
+            );
+        else if (MotorVehicle.KEY.equals(name))
+            return ImportUnit.create(name, props -> MotorVehicle.create(),
+                    (lookup, props) -> new OSMMotorVehicleParser(
+                            lookup.getEnumEncodedValue(MotorVehicle.KEY, MotorVehicle.class))
+            );
         return null;
     }
 }
