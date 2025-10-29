@@ -68,11 +68,22 @@ public class RoundTripRouting {
 
     public static List<Snap> lookup(List<GHPoint> points, EdgeFilter edgeFilter, LocationIndex locationIndex, Params params) {
         // todo: no snap preventions for round trip so far
-        if (points.size() != 1)
-            throw new IllegalArgumentException("For round trip calculation exactly one point is required");
+        if (points.isEmpty())
+            throw new IllegalArgumentException("At least one point is required for round trip calculation");
 
-        final GHPoint start = points.get(0);
+        // Single point: use the original algorithm with generated via points
+        if (points.size() == 1) {
+            return lookupSinglePoint(points.get(0), edgeFilter, locationIndex, params);
+        }
 
+        // Multiple points: use them as enforced via points and generate additional points between them
+        return lookupMultipleViaPoints(points, edgeFilter, locationIndex, params);
+    }
+
+    /**
+     * Original round trip algorithm with a single start point and automatically generated via points
+     */
+    private static List<Snap> lookupSinglePoint(GHPoint start, EdgeFilter edgeFilter, LocationIndex locationIndex, Params params) {
         TourStrategy strategy = new MultiPointTour(new Random(params.seed), params.distanceInMeter, params.roundTripPointCount, params.initialHeading);
         List<Snap> snaps = new ArrayList<>(2 + strategy.getNumberOfGeneratedPoints());
         Snap startSnap = locationIndex.findClosest(start.lat, start.lon, edgeFilter);
@@ -90,6 +101,115 @@ public class RoundTripRouting {
         }
 
         snaps.add(startSnap);
+        return snaps;
+    }
+
+    /**
+     * Enhanced round trip algorithm with enforced via points.
+     * Generates additional points between the via points to create a more interesting route.
+     * The tour starts and ends at the first point: A -> B(via) -> C(via) -> ... -> A
+     */
+    private static List<Snap> lookupMultipleViaPoints(List<GHPoint> viaPoints, EdgeFilter edgeFilter, LocationIndex locationIndex, Params params) {
+        if (viaPoints.size() < 2)
+            throw new IllegalArgumentException("At least 2 via points are required for multi-point round trip");
+
+        final GHPoint start = viaPoints.get(0);
+        List<Snap> snaps = new ArrayList<>();
+        
+        // Snap all via points first and validate them
+        List<Snap> viaSnaps = new ArrayList<>(viaPoints.size());
+        for (int i = 0; i < viaPoints.size(); i++) {
+            GHPoint point = viaPoints.get(i);
+            Snap snap = locationIndex.findClosest(point.lat, point.lon, edgeFilter);
+            if (!snap.isValid())
+                throw new PointNotFoundException("Cannot find via point " + i + ": " + point, i);
+            viaSnaps.add(snap);
+        }
+
+        // Calculate total distance between all via points to determine how many intermediate points to generate
+        double totalViaDistance = 0;
+        for (int i = 0; i < viaSnaps.size() - 1; i++) {
+            GHPoint p1 = viaSnaps.get(i).getSnappedPoint();
+            GHPoint p2 = viaSnaps.get(i + 1).getSnappedPoint();
+            totalViaDistance += DistanceCalcEarth.DIST_EARTH.calcDist(p1.getLat(), p1.getLon(), p2.getLat(), p2.getLon());
+        }
+        // Distance from last via point back to start
+        GHPoint lastPoint = viaSnaps.get(viaSnaps.size() - 1).getSnappedPoint();
+        totalViaDistance += DistanceCalcEarth.DIST_EARTH.calcDist(lastPoint.getLat(), lastPoint.getLon(), start.getLat(), start.getLon());
+
+        // Calculate how many additional points to generate based on desired total distance
+        // If desired distance is less than via points distance, no intermediate points
+        int totalIntermediatePoints = 0;
+        if (params.distanceInMeter > totalViaDistance) {
+            // Distribute remaining distance among segments
+            double remainingDistance = params.distanceInMeter - totalViaDistance;
+            // Generate roughly one intermediate point per 50km of remaining distance
+            totalIntermediatePoints = Math.max(0, (int) (remainingDistance / 50000));
+            totalIntermediatePoints = Math.min(totalIntermediatePoints, params.roundTripPointCount);
+        }
+
+        // Distribute intermediate points among segments (including the return to start)
+        int numSegments = viaPoints.size(); // includes return to start
+        int pointsPerSegment = totalIntermediatePoints > 0 ? Math.max(1, totalIntermediatePoints / numSegments) : 0;
+
+        Random random = new Random(params.seed);
+        
+        // Add start point
+        snaps.add(viaSnaps.get(0));
+        
+        // For each segment between via points, potentially add intermediate points
+        for (int segmentIdx = 0; segmentIdx < viaPoints.size(); segmentIdx++) {
+            GHPoint fromPoint = viaSnaps.get(segmentIdx).getSnappedPoint();
+            GHPoint toPoint = segmentIdx < viaPoints.size() - 1 
+                ? viaSnaps.get(segmentIdx + 1).getSnappedPoint() 
+                : viaSnaps.get(0).getSnappedPoint(); // Last segment returns to start
+            
+            double segmentDistance = DistanceCalcEarth.DIST_EARTH.calcDist(
+                fromPoint.getLat(), fromPoint.getLon(), 
+                toPoint.getLat(), toPoint.getLon()
+            );
+
+            // Generate intermediate points for this segment if desired
+            if (pointsPerSegment > 0 && segmentDistance > 10000) { // Only add if segment is long enough (>10km)
+                double heading = DistanceCalcEarth.DIST_EARTH.calcAzimuth(
+                    fromPoint.getLat(), fromPoint.getLon(),
+                    toPoint.getLat(), toPoint.getLon()
+                );
+                
+                GHPoint lastGenerated = fromPoint;
+                for (int i = 0; i < pointsPerSegment; i++) {
+                    // Generate points slightly off the direct path for more interesting routes
+                    double deviationAngle = (random.nextDouble() - 0.5) * 60; // +/- 30 degrees deviation
+                    double intermediateHeading = heading + deviationAngle;
+                    double intermediateDistance = segmentDistance / (pointsPerSegment + 1) * (i + 1);
+                    
+                    try {
+                        Snap intermediateSnap = generateValidPoint(
+                            lastGenerated, 
+                            intermediateDistance / (pointsPerSegment - i), 
+                            intermediateHeading, 
+                            edgeFilter, 
+                            locationIndex, 
+                            params.maxRetries
+                        );
+                        snaps.add(intermediateSnap);
+                        lastGenerated = intermediateSnap.getSnappedPoint();
+                    } catch (IllegalArgumentException e) {
+                        // If we can't find a valid intermediate point, skip it and continue
+                        // This ensures the route can still be calculated even if some points fail
+                    }
+                }
+            }
+            
+            // Add the next via point (or start point for last segment)
+            if (segmentIdx < viaPoints.size() - 1) {
+                snaps.add(viaSnaps.get(segmentIdx + 1));
+            }
+        }
+        
+        // Add start point again to complete the round trip
+        snaps.add(viaSnaps.get(0));
+        
         return snaps;
     }
 

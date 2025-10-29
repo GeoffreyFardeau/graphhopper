@@ -37,6 +37,35 @@ for CH is different to the algorithm used for LM or flexible mode. In all
 caases this setting will affect the speed of your routing requests. See
 the test headingAndAlternativeRoute and the Parameters class for further hints.
 
+## Round Trips with Via Points
+
+GraphHopper supports round trip routing with automatic waypoint generation or enforced via points:
+
+**Single point (automatic waypoint generation):**
+```java
+GHRequest request = new GHRequest();
+request.setAlgorithm("round_trip");
+request.addPoint(new GHPoint(48.8566, 2.3522)); // Paris
+request.getHints().putObject("round_trip.distance", 100_000); // 100 km
+```
+
+**Multiple via points (new feature):**
+```java
+GHRequest request = new GHRequest();
+request.setAlgorithm("round_trip");
+request.addPoint(new GHPoint(48.8566, 2.3522)); // Paris (start/end)
+request.addPoint(new GHPoint(45.7640, 4.8357)); // Lyon
+request.addPoint(new GHPoint(43.2965, 5.3698)); // Marseille
+request.getHints().putObject("round_trip.distance", 200_000); // 200 km
+```
+
+The round trip will visit all via points in order and return to the starting point: Paris → Lyon → Marseille → Paris.
+Additional intermediate points may be generated between via points for more interesting routes.
+
+See [round-trip-with-via-points.md](./round-trip-with-via-points.md) for detailed documentation.
+
+**Note:** Round trips only work with flexible mode (and hybrid/LM mode) - not with CH. Make sure to set `ch.disable=true`.
+
 ## Java client (client-hc)
  
 If you want to calculate routes using the [GraphHopper Directions API](https://www.graphhopper.com/products/) or 

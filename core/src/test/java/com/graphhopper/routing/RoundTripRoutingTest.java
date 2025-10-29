@@ -59,8 +59,8 @@ public class RoundTripRoutingTest {
     private final GHPoint ghPoint2 = new GHPoint(1, 1);
 
     @Test
-    public void lookup_throwsIfNumberOfPointsNotOne() {
-        assertThrows(IllegalArgumentException.class, () -> RoundTripRouting.lookup(Arrays.asList(ghPoint1, ghPoint2),
+    public void lookup_throwsIfNoPoints() {
+        assertThrows(IllegalArgumentException.class, () -> RoundTripRouting.lookup(Collections.emptyList(),
                 new FiniteWeightFilter(weighting), null, new RoundTripRouting.Params()));
     }
 
@@ -128,6 +128,83 @@ public class RoundTripRoutingTest {
         BaseGraph graph = new BaseGraph.Builder(em).withTurnCosts(true).create();
         AlternativeRouteTest.initTestGraph(graph, speedEnc);
         return graph;
+    }
+
+    @Test
+    public void testMultipleViaPoints_twoPoints() {
+        BaseGraph g = createSquareGraph();
+        LocationIndex locationIndex = new LocationIndexTree(g, new RAMDirectory()).prepareIndex();
+        
+        // Create a round trip with two via points: start at (1, -1) and pass through (-1, 1)
+        GHPoint start = new GHPoint(1, -1);
+        GHPoint via = new GHPoint(-1, 1);
+        
+        PMap hints = new PMap();
+        hints.putObject(Parameters.Algorithms.RoundTrip.DISTANCE, 100000);
+        
+        List<Snap> stagePoints = RoundTripRouting.lookup(Arrays.asList(start, via),
+                new FiniteWeightFilter(weighting), locationIndex,
+                new RoundTripRouting.Params(hints, 0, 3));
+        
+        // Should have at least 3 points: start, via, and back to start
+        assertEquals(3, stagePoints.size(), "Should have at least start, via, and return to start");
+        assertEquals(0, stagePoints.get(0).getClosestNode(), "First point should be node 0");
+        assertEquals(4, stagePoints.get(1).getClosestNode(), "Via point should be node 4");
+        assertEquals(0, stagePoints.get(2).getClosestNode(), "Should return to start node 0");
+    }
+
+    @Test
+    public void testMultipleViaPoints_threePoints() {
+        BaseGraph g = createSquareGraph();
+        LocationIndex locationIndex = new LocationIndexTree(g, new RAMDirectory()).prepareIndex();
+        
+        // Create a round trip with three via points
+        GHPoint point1 = new GHPoint(1, -1);  // node 0
+        GHPoint point2 = new GHPoint(1, 1);   // node 2
+        GHPoint point3 = new GHPoint(-1, -1); // node 6
+        
+        PMap hints = new PMap();
+        hints.putObject(Parameters.Algorithms.RoundTrip.DISTANCE, 50000);
+        
+        List<Snap> stagePoints = RoundTripRouting.lookup(Arrays.asList(point1, point2, point3),
+                new FiniteWeightFilter(weighting), locationIndex,
+                new RoundTripRouting.Params(hints, 0, 3));
+        
+        // Should have at least 4 points: point1, point2, point3, and back to point1
+        assertEquals(4, stagePoints.size(), "Should have at least all via points and return to start");
+        assertEquals(0, stagePoints.get(0).getClosestNode(), "First point should be node 0");
+        assertEquals(2, stagePoints.get(1).getClosestNode(), "Second point should be node 2");
+        assertEquals(6, stagePoints.get(2).getClosestNode(), "Third point should be node 6");
+        assertEquals(0, stagePoints.get(3).getClosestNode(), "Should return to start node 0");
+    }
+
+    @Test
+    public void testMultipleViaPoints_calculatesPath() {
+        BaseGraph g = createSquareGraph();
+        LocationIndex locationIndex = new LocationIndexTree(g, new RAMDirectory()).prepareIndex();
+        
+        GHPoint start = new GHPoint(1, -1);  // node 0
+        GHPoint via = new GHPoint(-1, 1);    // node 4
+        
+        PMap hints = new PMap();
+        hints.putObject(Parameters.Algorithms.RoundTrip.DISTANCE, 50000);
+        
+        List<Snap> stagePoints = RoundTripRouting.lookup(Arrays.asList(start, via),
+                new FiniteWeightFilter(weighting), locationIndex,
+                new RoundTripRouting.Params(hints, 0, 3));
+        
+        QueryGraph queryGraph = QueryGraph.create(g, stagePoints);
+        List<Path> paths = RoundTripRouting.calcPaths(stagePoints, new FlexiblePathCalculator(queryGraph,
+                new RoutingAlgorithmFactorySimple(), weighting, 
+                new AlgorithmOptions().setAlgorithm(DIJKSTRA_BI).setTraversalMode(tMode))).paths;
+        
+        // Should have paths connecting all points in the round trip
+        assertEquals(stagePoints.size() - 1, paths.size(), "Should have one path per segment");
+        
+        // All paths should be valid (not empty)
+        for (Path path : paths) {
+            assertEquals(true, path.isFound(), "Each path segment should be found");
+        }
     }
 
     private BaseGraph createSquareGraph() {
