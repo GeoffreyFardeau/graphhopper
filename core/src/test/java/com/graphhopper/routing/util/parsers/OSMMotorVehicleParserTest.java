@@ -2,6 +2,7 @@ package com.graphhopper.routing.util.parsers;
 
 import com.graphhopper.reader.ReaderWay;
 import com.graphhopper.routing.ev.*;
+import com.graphhopper.storage.IntsRef;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -25,7 +26,7 @@ class OSMMotorVehicleParserTest {
         ReaderWay way = new ReaderWay(1);
         way.setTag("motor_vehicle", "yes");
         
-        parser.handleWayTags(edgeId, edgeIntAccess, way);
+        parser.handleWayTags(edgeId, edgeIntAccess, way, IntsRef.EMPTY);
         assertEquals(MotorVehicle.YES, motorVehicleEnc.getEnum(false, edgeId, edgeIntAccess));
     }
 
@@ -36,7 +37,7 @@ class OSMMotorVehicleParserTest {
         ReaderWay way = new ReaderWay(1);
         way.setTag("motor_vehicle", "no");
         
-        parser.handleWayTags(edgeId, edgeIntAccess, way);
+        parser.handleWayTags(edgeId, edgeIntAccess, way, IntsRef.EMPTY);
         assertEquals(MotorVehicle.NO, motorVehicleEnc.getEnum(false, edgeId, edgeIntAccess));
     }
 
@@ -47,7 +48,7 @@ class OSMMotorVehicleParserTest {
         ReaderWay way = new ReaderWay(1);
         // No motor_vehicle tag
         
-        parser.handleWayTags(edgeId, edgeIntAccess, way);
+        parser.handleWayTags(edgeId, edgeIntAccess, way, IntsRef.EMPTY);
         assertEquals(MotorVehicle.MISSING, motorVehicleEnc.getEnum(false, edgeId, edgeIntAccess));
     }
 
@@ -58,7 +59,7 @@ class OSMMotorVehicleParserTest {
         ReaderWay way = new ReaderWay(1);
         way.setTag("motor_vehicle", "unknown_value");
         
-        parser.handleWayTags(edgeId, edgeIntAccess, way);
+        parser.handleWayTags(edgeId, edgeIntAccess, way, IntsRef.EMPTY);
         // Should not set anything for unknown values
         assertEquals(MotorVehicle.MISSING, motorVehicleEnc.getEnum(false, edgeId, edgeIntAccess));
     }
@@ -70,7 +71,7 @@ class OSMMotorVehicleParserTest {
         ReaderWay way = new ReaderWay(1);
         way.setTag("motor_vehicle", "permissive");
         
-        parser.handleWayTags(edgeId, edgeIntAccess, way);
+        parser.handleWayTags(edgeId, edgeIntAccess, way, IntsRef.EMPTY);
         assertEquals(MotorVehicle.PERMISSIVE, motorVehicleEnc.getEnum(false, edgeId, edgeIntAccess));
     }
 
@@ -81,7 +82,7 @@ class OSMMotorVehicleParserTest {
         ReaderWay way = new ReaderWay(1);
         way.setTag("motor_vehicle", "private");
         
-        parser.handleWayTags(edgeId, edgeIntAccess, way);
+        parser.handleWayTags(edgeId, edgeIntAccess, way, IntsRef.EMPTY);
         assertEquals(MotorVehicle.PRIVATE, motorVehicleEnc.getEnum(false, edgeId, edgeIntAccess));
     }
 
@@ -92,7 +93,7 @@ class OSMMotorVehicleParserTest {
         ReaderWay way = new ReaderWay(1);
         way.setTag("motor_vehicle", "destination");
         
-        parser.handleWayTags(edgeId, edgeIntAccess, way);
+        parser.handleWayTags(edgeId, edgeIntAccess, way, IntsRef.EMPTY);
         assertEquals(MotorVehicle.DESTINATION, motorVehicleEnc.getEnum(false, edgeId, edgeIntAccess));
     }
 
@@ -103,7 +104,7 @@ class OSMMotorVehicleParserTest {
         ReaderWay way = new ReaderWay(1);
         way.setTag("motor_vehicle", "delivery");
         
-        parser.handleWayTags(edgeId, edgeIntAccess, way);
+        parser.handleWayTags(edgeId, edgeIntAccess, way, IntsRef.EMPTY);
         assertEquals(MotorVehicle.DELIVERY, motorVehicleEnc.getEnum(false, edgeId, edgeIntAccess));
     }
 }

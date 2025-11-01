@@ -6,6 +6,7 @@ import com.graphhopper.GraphHopper;
 import com.graphhopper.ResponsePath;
 import com.graphhopper.config.CHProfile;
 import com.graphhopper.config.Profile;
+import com.graphhopper.util.GHUtility;
 import com.graphhopper.util.Parameters;
 import com.graphhopper.util.shapes.GHPoint;
 
@@ -40,8 +41,8 @@ public class RoundTripWithViaPointsExample {
         hopper.setOSMFile("path/to/your/map.osm.pbf");
         hopper.setGraphHopperLocation("path/to/your/graph-cache");
         
-        // Define profile for car routing
-        hopper.setProfiles(new Profile("car").setVehicle("car").setWeighting("fastest"));
+        // Define profile for car routing using custom model
+        hopper.setProfiles(new Profile("car").setCustomModel(GHUtility.loadCustomModelFromJar("car.json")));
         
         // Optional: Add CH profile (but note that round trips don't work with CH)
         // hopper.getCHPreparationHandler().setCHProfiles(new CHProfile("car"));
@@ -173,7 +174,7 @@ public class RoundTripWithViaPointsExample {
                 System.out.println("  Estimated time: " + String.format("%.1f", path.getTime() / 3600000.0) + " hours");
                 System.out.println("  Total points: " + path.getPoints().size());
                 
-                if (path.hasInstructions()) {
+                if (path.getInstructions() != null && !path.getInstructions().isEmpty()) {
                     System.out.println("  Instructions: " + path.getInstructions().size() + " steps");
                 }
             }
@@ -192,8 +193,8 @@ public class RoundTripWithViaPointsExample {
             throw new IllegalStateException("Path is null");
         }
         
-        if (!path.isFound()) {
-            throw new IllegalStateException("Path not found");
+        if (path.hasErrors()) {
+            throw new IllegalStateException("Path has errors: " + path.getErrors());
         }
         
         // Check that we have a valid round trip
