@@ -184,3 +184,22 @@ Des tests unitaires sont disponibles dans `RoundTripRoutingTest.java` :
 - Angle de déviation : ±30° par rapport à la direction directe
 - Distance minimale de segment : 10 km pour générer des points intermédiaires
 - Distance par point intermédiaire : ~50 km de distance restante
+
+
+## Algorithm (version 2)
+
+The straight line polygon start -> via points -> start defines the base shape. If the requested distance
+(times `round_trip.via_skeleton_factor`, default 0.8) is not more than 1.3x its perimeter the via points are
+routed directly. Otherwise a geometric skeleton is built: the ideal loop is a circle whose circumference is
+the target distance and which passes through the via points. A circle centre is fitted to the via points,
+every leg is interpolated in polar coordinates around that centre and blended with its straight chord so
+that the closed polyline has the target length. Close via points give one round loop with the points on its
+rim, two distant points give a lens, points spanning a large area give a rounded polygon. The side and the
+direction of the loop follow the requested `heading` when given, otherwise `round_trip.seed`.
+
+`round_trip.via_skeleton_factor` scales the skeleton length relative to `round_trip.distance`: roads are
+always longer than the skeleton, 0.8 produces via point loops of similar length as single point loops.
+
+`round_trip.avoid_edges_factor` (default 100, upstream 5) is the weight factor of edges already used by a
+previous leg. It applies to all round trips and prevents loops that come back on themselves when the custom
+model makes unwanted roads very expensive.

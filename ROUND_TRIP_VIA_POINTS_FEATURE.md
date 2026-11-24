@@ -83,26 +83,36 @@ GHResponse response = graphHopper.route(request);
 GET /route?point=48.8566,2.3522&point=45.7640,4.8357&point=43.2965,5.3698&algorithm=round_trip&round_trip.distance=200000&ch.disable=true
 ```
 
-## ⚙️ Algorithme
+## ⚙️ Algorithme (version 2, septembre 2026)
 
 ### Étapes de calcul
 
-1. **Validation** : Vérification que tous les via points sont valides
-2. **Snap** : Association des points aux nœuds du graphe
-3. **Calcul de distance** : Calcul de la distance totale entre via points
-4. **Génération de points** :
-   - Si `round_trip.distance` > distance directe → génération de points intermédiaires
-   - Distribution équitable entre les segments
-   - Déviation aléatoire de ±30° pour des trajets intéressants
-5. **Calcul de routes** : Calcul des chemins entre tous les points
-6. **Retour au départ** : Ajout du segment retour au point de départ
+1. **Validation / snap** : tous les via points sont accrochés au graphe (erreur si un point est introuvable)
+2. **Périmètre** : distance à vol d'oiseau du polygone départ → via points → départ
+3. **Si `round_trip.distance × via_skeleton_factor` ≤ 1,3 × périmètre** : routage direct par les via points (les routes réelles sont toujours plus longues que la ligne droite)
+4. **Sinon, construction d'un squelette géométrique** :
+   - La boucle idéale est un **cercle dont la circonférence vaut la distance cible** et qui passe par les via points
+   - Le centre du cercle est ajusté aux via points (moindres carrés, rayon fixé)
+   - Chaque segment est interpolé en **coordonnées polaires** autour de ce centre (un arc) puis mélangé avec la corde droite ; le coefficient de mélange est résolu par dichotomie pour que la polyligne fermée ait exactement la longueur cible
+   - Points proches du départ → **une seule grande boucle ronde** avec les via points sur son pourtour
+   - Deux points éloignés → une **lentille** (aller d'un côté, retour de l'autre)
+   - Points qui couvrent déjà une grande surface → **polygone arrondi** gonflé vers l'extérieur
+   - Le sens de parcours et le côté de la boucle sont choisis d'après `heading` si fourni, sinon d'après `round_trip.seed`
+5. **Calcul des routes** entre tous les points, avec pénalité **×100** (`round_trip.avoid_edges_factor`) sur les arêtes déjà utilisées. Upstream utilise ×5, insuffisant avec des custom models où l'asphalte a une priorité 0,1 : réemprunter une piste restait moins cher que prendre une route, d'où les boucles qui revenaient sur elles-mêmes. Cette pénalité s'applique aussi aux boucles sans via point.
+6. **Retour au départ**
 
-### Paramètres intelligents
+### Paramètres
 
-- **Segments courts (<10km)** : Pas de points intermédiaires
-- **Points intermédiaires** : ~1 point par 50km de distance restante
-- **Limite** : Maximum défini par `round_trip.points`
-- **Erreurs tolérées** : Les points intermédiaires qui ne peuvent pas être trouvés sont ignorés
+- `round_trip.distance` : distance cible (m)
+- `round_trip.seed` : graine (varie la forme : rayon ±10 %, côté et sens de la boucle)
+- `round_trip.points` : nombre indicatif de points intermédiaires (minimum 6 pour les boucles avec via points, maximum 5 par segment)
+- `round_trip.via_skeleton_factor` (défaut **0,8**) : longueur du squelette en fraction de `round_trip.distance`. Les routes réelles sont plus longues que le squelette ; 0,8 donne des boucles avec via points de longueur comparable aux boucles sans via point, donc compatibles avec la même calibration côté backend. Augmenter pour des boucles plus longues, diminuer pour des boucles plus courtes.
+- `round_trip.avoid_edges_factor` (défaut **100**) : facteur de poids des tronçons déjà parcourus par un segment précédent de la boucle. Mesuré sur un graphe réel : croisements moyens divisés par 4 par rapport à ×5, sans allongement systématique
+- `heading` (premier élément de `headings`) : direction de départ souhaitée, sert à choisir le côté de la boucle
+
+### Pourquoi la version 1 faisait des boucles bizarres
+
+L'ancienne génération projetait chaque point depuis le précédent avec le cap du segment d'origine (jamais vers le via point suivant), avec une distance calculée sur la distance totale et non sur le segment, et une déviation alternée gauche/droite de ±45°. Résultat : zigzags, dépassement des via points puis demi-tour, aller et retour du même côté.
 
 ## 🧪 Tests
 

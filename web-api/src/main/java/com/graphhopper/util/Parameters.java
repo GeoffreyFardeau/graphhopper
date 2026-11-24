@@ -83,6 +83,14 @@ public class Parameters {
             public static final String DISTANCE = ROUND_TRIP + ".distance";
             public static final String SEED = ROUND_TRIP + ".seed";
             public static final String POINTS = ROUND_TRIP + ".points";
+            /**
+             * Round trips with via points only: length factor of the geometric skeleton, see RoundTripRouting
+             */
+            public static final String VIA_SKELETON_FACTOR = ROUND_TRIP + ".via_skeleton_factor";
+            /**
+             * Weight factor for edges already used by a previous leg of the round trip (default 100, upstream GraphHopper used 5)
+             */
+            public static final String AVOID_EDGES_FACTOR = ROUND_TRIP + ".avoid_edges_factor";
             public static final String INIT_MAX_RETRIES = ROUTING_INIT_PREFIX + ROUND_TRIP + ".max_retries";
         }
     }

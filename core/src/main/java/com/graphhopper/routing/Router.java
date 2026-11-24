@@ -227,7 +227,7 @@ public class Router {
         QueryGraph queryGraph = QueryGraph.create(graph, snaps);
         FlexiblePathCalculator pathCalculator = solver.createPathCalculator(queryGraph);
 
-        RoundTripRouting.Result result = RoundTripRouting.calcPaths(snaps, pathCalculator);
+        RoundTripRouting.Result result = RoundTripRouting.calcPaths(snaps, pathCalculator, params.getAvoidEdgesFactor());
         // we merge the different legs of the roundtrip into one response path
         // note that the waypoints are not just the snapped points of the snaps, as usual, because we do some kind of tweak
         // to avoid 'unnecessary tails' in the roundtrip algo
